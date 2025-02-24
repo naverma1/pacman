@@ -1,5 +1,6 @@
 from pacai.agents.learning.reinforcement import ReinforcementAgent
 from pacai.util import reflection
+import random
 
 class QLearningAgent(ReinforcementAgent):
     """
@@ -46,6 +47,7 @@ class QLearningAgent(ReinforcementAgent):
         super().__init__(index, **kwargs)
 
         # You can initialize Q-values here.
+        self.qValues = {}
 
     def getQValue(self, state, action):
         """
@@ -54,7 +56,10 @@ class QLearningAgent(ReinforcementAgent):
         Should return 0.0 if the (state, action) pair has never been seen.
         """
 
-        return 0.0
+        if (state, action) not in (self.qVal, self.qVal[state]):
+            return 0.0
+        else:
+            return self.qVal[(state, action)]
 
     def getValue(self, state):
         """
@@ -69,7 +74,14 @@ class QLearningAgent(ReinforcementAgent):
         Whereas this method returns the value of the best action.
         """
 
-        return 0.0
+        legalActions = self.getLegalActions(state)
+        if not legalActions:
+            return None
+
+        bestQValue = self.getValue(state)
+        return random.choice([action for action in
+                        legalActions if self.getQValue(state, action) == bestQValue])
+
 
     def getPolicy(self, state):
         """
@@ -84,7 +96,14 @@ class QLearningAgent(ReinforcementAgent):
         Whereas this method returns the best action itself.
         """
 
-        return None
+        legalActions = self.getLegalActions(state)
+        if not legalActions:
+            return random.choice(legalActions)
+        else:
+            return self.getPolicy(state)
+        
+        
+        
 
 class PacmanQAgent(QLearningAgent):
     """

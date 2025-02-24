@@ -13,6 +13,7 @@ from pacai.core.search.position import PositionSearchProblem
 from pacai.core.search.problem import SearchProblem
 from pacai.agents.base import BaseAgent
 from pacai.agents.search.base import SearchAgent
+from pacman.pacai.core.directions import Directions
 
 class CornersProblem(SearchProblem):
     """
@@ -64,6 +65,42 @@ class CornersProblem(SearchProblem):
                 logging.warning('Warning: no food in corner ' + str(corner))
 
         # *** Your Code Here ***
+
+        
+
+        # raise NotImplementedError()
+
+    def startingState(self):
+            return (self.startingPosition)
+    
+    def isGoal(self, state):
+        if (state != self.goal):
+            return False
+        
+        self._visitedLocations.add(state)
+        coordinates = state
+        self._visitHistory.append(coordinates)
+
+        return True
+    
+    def successorStates(self, state):
+        successors = []
+
+        for action in Directions.CARDINAL:
+            x, y = state[0]
+            dx, dy = Actions.directionToVector(action)
+            nextx, nexty = int(x + dx), int(y + dy)
+            hitsWall = self.walls[nextx][nexty]
+
+            if (not hitsWall):
+                # Construct the successor.
+                next_pos = (nextx, nexty)
+
+                if state[0] in self.corners:
+                    self.cornersVisitedList.append
+
+        return successors
+    
         raise NotImplementedError()
 
     def actionsCost(self, actions):
