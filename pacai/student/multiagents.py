@@ -2,6 +2,7 @@ import random
 
 from pacai.agents.base import BaseAgent
 from pacai.agents.search.multiagent import MultiAgentSearchAgent
+from pacai.core import distance
 
 class ReflexAgent(BaseAgent):
     """
@@ -50,15 +51,45 @@ class ReflexAgent(BaseAgent):
 
         successorGameState = currentGameState.generatePacmanSuccessor(action)
 
-        # Useful information you can extract.
-        # newPosition = successorGameState.getPacmanPosition()
-        # oldFood = currentGameState.getFood()
-        # newGhostStates = successorGameState.getGhostStates()
-        # newScaredTimes = [ghostState.getScaredTimer() for ghostState in newGhostStates]
+        newScore = successorGameState.getScore()
+        newPosition = successorGameState.getPacmanPosition()
+        oldFood = successorGameState.getFood()
+        newGhostStates = successorGameState.getGhostStates()
 
-        # *** Your Code Here ***
+        # Get all ghost positions
+        ghostDistances = [ghostState.getPosition() for ghostState in newGhostStates]
+        ghostHeuristics = [distance.manhattan(newPosition, ghostDistance)
+        for ghostDistance in ghostDistances]
 
-        return successorGameState.getScore()
+        ghostScore = 0
+        for ghostDistance in ghostDistances:
+            if newGhostStates[ghostDistances.index(ghostDistance)].getScaredTimer == 0:
+                ghostScore -= 50
+            else:
+                ghostScore = 50
+
+        ghostable = []
+        # Iterate through all ghost states
+        for newState in newGhostStates:
+            ghostPosition = newState.getPosition()
+
+            ghostable.append((ghostPosition[0], ghostPosition[1]))
+            ghostable.append((ghostPosition[0], ghostPosition[1] - 1))
+            ghostable.append((ghostPosition[0], ghostPosition[1] + 1))
+            ghostable.append((ghostPosition[0] - 1, ghostPosition[1]))
+            ghostable.append((ghostPosition[0] + 1, ghostPosition[1]))
+
+        # If there is still food left, penalize
+        if len(oldFood.asList()) > 0:
+            newScore -= distance.manhattan(newPosition, oldFood.asList()[0])
+        # If pacman is in danger proximity of ghost
+        if newPosition in ghostable:
+            newScore -= 750
+
+        newScore += sum(ghostHeuristics) + ghostScore
+        
+        return newScore
+
 
 class MinimaxAgent(MultiAgentSearchAgent):
     """
@@ -90,6 +121,62 @@ class MinimaxAgent(MultiAgentSearchAgent):
     def __init__(self, index, **kwargs):
         super().__init__(index, **kwargs)
 
+    def getNumAgents(self, gameState):
+        return gameState.getNumAgents()
+    
+    def getLegalActions(self, gameState, index):
+        return gameState.getLegalActions(index)
+    
+    def generateSuccessor(self, gameState, legalActions):
+        successors = []
+        for action in legalActions:
+            move = gameState.generatePacmanSuccessor(action)
+            successors.append(move)
+        return successors
+
+    def getTreeDepth(self):
+        return self._treeDepth
+    
+    def getEvaluationFunction(self, gameState):
+        return self._evaluationFunction(gameState)
+    
+    def miniMax(self, gameState, index, curDepth):
+        index = 0
+        curDepth += 1
+
+        # check if current depth is equal to the tree depth,
+        # if so call eval function on current gamestate
+        if curDepth == self.getTreeDepth():
+            return self.getEvaluationFunction(gameState)
+        
+        legalActions = gameState.getLegalActions(index)
+        # if there are no more legalActions left call the eval func on current gamestate
+        if len(legalActions) == 0:
+            return self.getEvaluationFunction(gameState)
+
+        # recursive call to tree
+        scores = [(self.miniMax(gameState.generateSuccessor(index, action), index + 1, curDepth))
+                  for action in legalActions]
+        
+        if index == 0:
+            return max(scores)
+        else:
+            return min(scores)
+
+    def getAction(self, gameState):
+        legalActions = gameState.getLegalActions(0)
+
+        scores = [(self.miniMax(gameState.generateSuccessor(0, action), 1, 0), action)
+                  for action in legalActions]
+
+        scores = []
+        for legalAction in gameState.getLegalActions(0):
+            result = self.miniMax(gameState.generateSuccessor(0, legalAction), 1, 0)
+            scores.append((result, legalAction))
+        bestScore = max(scores)[0]
+        bestIndices = [score[1] for score in scores if score[0] == bestScore]
+        return bestIndices[0]
+
 class AlphaBetaAgent(MultiAgentSearchAgent):
     """
     A minimax agent with alpha-beta pruning.
@@ -106,21 +193,57 @@ class AlphaBetaAgent(MultiAgentSearchAgent):
         super().__init__(index, **kwargs)
 
 class ExpectimaxAgent(MultiAgentSearchAgent):
-    """
-    An expectimax agent.
-
-    All ghosts should be modeled as choosing uniformly at random from their legal moves.
-
-    Method to Implement:
-
-    `pacai.agents.base.BaseAgent.getAction`:
-    Returns the expectimax action from the current gameState using
-    `pacai.agents.search.multiagent.MultiAgentSearchAgent.getTreeDepth`
-    and `pacai.agents.search.multiagent.MultiAgentSearchAgent.getEvaluationFunction`.
-    """
-
+    
     def __init__(self, index, **kwargs):
         super().__init__(index, **kwargs)
+
+    def getTreeDepth(self, gameState):
+        return self._treeDepth
+    
+    def getEvaluationFunction(self, gameState):
+        return self._evaluationFunction(gameState)
+    
+    def getNumAgents(self, gameState):
+        return gameState.getNumAgents()
+    
+    def generateSuccessor(self, gameState, legalActions):
+        successors = []
+        for action in legalActions:
+            move = gameState.generatePacmanSuccessor(action)
+            successors.append(move)
+        return successors
+    
+    def expectiMax(self, gameState, index, depth):
+        if index == self.getNumAgents(gameState):
+            index = 0
+            depth += 1
+
+            if depth == self.getTreeDepth(gameState):
+                return self.getEvaluationFunction(gameState)
+        
+        scores = []
+        legalActions = gameState.getLegalActions(index)
+        if len(legalActions) == 0:
+            return self.getEvaluationFunction(gameState)
+        for move in legalActions:
+            result = self.expectiMax(gameState.generateSuccessor(index, move), index + 1, depth)
+            scores.append(result)
+
+        if index == 0:
+            return max(scores)
+        else:
+            return sum(scores) / len(scores)
+        
+    def getAction(self, gameState):
+        legalActions = gameState.getLegalActions(0)
+        scores = []
+        for move in legalActions:
+            result = self.expectiMax(gameState.generateSuccessor(0, move), 1, 0)
+            scores.append((result, move))
+
+        bestScore = max(scores)[0]
+        bestIndices = [score[1] for score in scores if score[0] == bestScore]
+        return bestIndices[0]
 
 def betterEvaluationFunction(currentGameState):
     """
@@ -128,8 +251,39 @@ def betterEvaluationFunction(currentGameState):
 
     DESCRIPTION: <write something here so we know what you did>
     """
+    newScore = currentGameState.getScore()
+    newPosition = currentGameState.getPacmanPosition()
+    oldFood = currentGameState.getFood()
+    newGhost = currentGameState.getGhostStates()
+    
+    ghostDist = [ghost.getPosition() for ghost in newGhost]
+    ghostScore = 0
+    for dist in ghostDist:
+        if newGhost[ghostDist.index(dist)].getScaredTimer == 0:
+            ghostScore -= 10
+        else:
+            ghostScore = 5
 
-    return currentGameState.getScore()
+    # if food leftover then penalty
+    ghostable = []
+    # Iterate through all ghost states
+    for newState in newGhost:
+        ghostPosition = newState.getPosition()
+
+        ghostable.append((ghostPosition[0], ghostPosition[1]))
+        ghostable.append((ghostPosition[0], ghostPosition[1] - 1))
+        ghostable.append((ghostPosition[0], ghostPosition[1] + 1))
+        ghostable.append((ghostPosition[0] - 1, ghostPosition[1]))
+        ghostable.append((ghostPosition[0] + 1, ghostPosition[1]))
+
+    # If there is still food left, penalize
+    if len(oldFood.asList()) > 0:
+        newScore -= distance.manhattan(newPosition, oldFood.asList()[0])
+    # If pacman is in danger proximity of ghost
+    if newPosition in ghostable:
+        newScore -= 500
+        
+    return newScore + currentGameState.getScore() + ghostScore
 
 class ContestAgent(MultiAgentSearchAgent):
     """
